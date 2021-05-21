@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:beacon_broadcast/beacon_broadcast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 
@@ -19,7 +22,7 @@ class MyHomePage extends StatefulWidget {
   MyHomePage({Key key, this.title}) : super(key: key);
 
   final String title;
-  final FlutterBlue flutterBlue = FlutterBlue.instance;
+  FlutterBlue flutterBlue = FlutterBlue.instance;
   final List<BluetoothDevice> devicesList = new List<BluetoothDevice>();
 
   @override
@@ -51,10 +54,76 @@ class _MyHomePageState extends State<MyHomePage> {
     widget.flutterBlue.startScan();
   }
 
+  static const String uuid = '39ED98FF-2900-441A-802F-9C398FC199D2';
+  static const int majorId = 1;
+  static const int minorId = 100;
+  static const int transmissionPower = -59;
+  static const AdvertiseMode advertiseMode = AdvertiseMode.lowPower;
+  BeaconBroadcast beaconBroadcast = BeaconBroadcast();
+
+  void _startBroadcast() {
+    beaconBroadcast
+        .setUUID(uuid)
+        .setMajorId(majorId)
+        .setMinorId(minorId)
+        .setTransmissionPower(transmissionPower)
+        .setAdvertiseMode(advertiseMode)
+        .start();
+  }
+
+  BeaconStatus _isTransmissionSupported;
+  bool _isAdvertising = false;
+  StreamSubscription<bool> _isAdvertisingSubscription;
+
   @override
   void initState() {
     super.initState();
     _scanDevices();
+
+    beaconBroadcast
+        .checkTransmissionSupported()
+        .then((isTransmissionSupported) {
+      setState(() {
+        _isTransmissionSupported = isTransmissionSupported;
+      });
+    });
+
+    _isAdvertisingSubscription =
+        beaconBroadcast.getAdvertisingStateChange().listen((isAdvertising) {
+      setState(() {
+        _isAdvertising = isAdvertising;
+      });
+    });
+  }
+
+  Future<void> _showBroadcastInfo() async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // user must tap button!
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Broadcast Info'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: const <Widget>[
+                Text('UUID: $uuid'),
+                Text('Major id: $majorId'),
+                Text('Minor id: $minorId'),
+                Text('Tx Power: $transmissionPower'),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Approve'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -67,7 +136,35 @@ class _MyHomePageState extends State<MyHomePage> {
             Container(
               child: _buildListViewOfDevices(),
             ),
-            FlatButton(onPressed: _scanDevices, child: Text("Scan Devices")),
+            Positioned(
+              left: 20.0,
+              bottom: 20.0,
+              child: FlatButton(
+                onPressed: () {},
+                child: Text("Advertising Status: $_isAdvertising"),
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            FlatButton(
+                onPressed: _startBroadcast, child: Text("Start Broadcast")),
+            FlatButton(
+              onPressed: () => showDialog<String>(
+                context: context,
+                builder: (BuildContext context) => AlertDialog(
+                  actions: <Widget>[
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, 'OK'),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
+              ),
+              child: Text("Show Broadcast Info"),
+            ),
           ],
         ),
       );
